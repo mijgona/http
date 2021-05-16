@@ -1,0 +1,3 @@
+###
+GET http://localhost:9999/api/payment2/22/?chan=55&chan=88 HTTP/1.1
+
