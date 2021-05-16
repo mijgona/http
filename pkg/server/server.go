@@ -4,18 +4,11 @@ import (
 	"bytes"
 	"log"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 )
 
-type HandlerFunc func(conn net.Conn)
-
-type Server struct {
-	addr	string
-	mu 		sync.RWMutex
-	handlers	map[string]HandlerFunc
-}
 
 func NewServer(addr string) *Server {
 	return &Server{addr: addr, handlers: make(map[string]HandlerFunc)}
@@ -23,7 +16,8 @@ func NewServer(addr string) *Server {
 
 func (s *Server) Register(path string, handler HandlerFunc)  {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.mu.Unlock()	
+	log.Println("Registered new path: ", path)
 	s.handlers[path]=handler
 }
 
@@ -48,7 +42,9 @@ func (s *Server) Start() error {
 			continue
 		}
 
-		go s.handle(conn)
+		go s.handle(Request{
+			Conn: conn,
+		})
 		
 	}
 
@@ -56,10 +52,10 @@ func (s *Server) Start() error {
 
 
 
-func (s *Server) handle(conn net.Conn){
+func (s *Server) handle(req Request){
 	var err error
 	defer func ()  {
-		if cerr := conn.Close(); cerr != nil {
+		if cerr := req.Conn.Close(); cerr != nil {
 			if err != nil{
 				err=cerr
 				return
@@ -71,7 +67,7 @@ func (s *Server) handle(conn net.Conn){
 	buf := make([]byte, 4096)
 	data := make([]byte,0)
 	for {
-		n, err :=conn.Read(buf)
+		n, err :=req.Conn.Read(buf)
 		
 		if err!=nil {
 			return
@@ -100,24 +96,61 @@ func (s *Server) handle(conn net.Conn){
 			log.Print("wrong version of http, should be 1.1")
 			continue
 		}
-		
-		s.mu.RLock()
-		fn, ok :=s.handlers[path]
-		s.mu.RUnlock()
-		if !ok {
-			log.Print("cant find path:", path)
-			return
+		path, err =url.PathUnescape(path)		
+		if err!=nil {
+			log.Print("cant decoding path")
+			continue
 		}
-		fn(conn)
+
+		uri, _ :=url.ParseRequestURI(path)
+		queryValues :=uri.Query()
+		log.Print(uri.Query())
+		
+		pathParams, handlerPath:=s.convertPath(uri.Path)
+		if len(pathParams)!=0{
+			log.Print((pathParams))	
+			s.mu.RLock()		
+			handler, ok :=s.handlers[handlerPath]
+			s.mu.RUnlock()
+			if !ok {
+				log.Print("cant find path:", uri.Path)
+				return
+			}
+			req := Request{
+				Conn:        req.Conn,
+				QueryParams: queryValues,
+				PathParams:  pathParams,
+			}
+			handler(&req)
+		}else{
+			log.Print((pathParams))	
+			
+			s.mu.RLock()		
+			handler, ok :=s.handlers[handlerPath]
+			s.mu.RUnlock()
+			if !ok {
+				log.Print("cant find path:", uri.Path)
+				return
+			}
+			req := Request{
+				Conn:        req.Conn,
+				QueryParams: queryValues,
+				PathParams:  pathParams,
+			}
+			handler(&req)
+		}
+
 	}	
 	
 	
 }
 
 
-func (s *Server) AddPath(path string, body string, conType string) {
-	s.Register(path, func(conn net.Conn) {
-		_, err := conn.Write([]byte(
+func (s *Server) AddPath(path string, body string, conType string) {	
+	s.Register(path, func(req *Request) {
+	log.Println("QueryParams:", req.QueryParams)
+	log.Println("PathParams:", req.PathParams)
+		_, err := req.Conn.Write([]byte(
 			"HTTP/1.1 200 OK \r\n" +
 				"Content-Length: " + strconv.Itoa(len(body)) + "\r\n" +
 				"Content-Type: " + conType + "\r\n" +
