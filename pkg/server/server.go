@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -64,24 +65,84 @@ func (s *Server) handle(req Request){
 		}
 	}()
 
-	buf := make([]byte, 4096)
+	buf := make([]byte, 8*1024)
 	data := make([]byte,0)
+	body := ""
+	headers:=""
+	requestLine := ""
+	completeRequestLine := false
+	complateHeader := false
+	complateBody := false
+	EOF := false
 	for {
-		n, err :=req.Conn.Read(buf)
-		
-		if err!=nil {
-			return
+		if complateBody {
+			break
 		}
 
-		data = append(data, buf[:n]...)
+		if !EOF {
+			n, err := req.Conn.Read(buf)
+			if err == io.EOF {
+				EOF = true
+			}
+			if err != nil && !EOF {
+				return
+			}
+			data = append(data, buf[:n]...)
+		}
+
+		//Делим запрос на части
+		log.Print(string(data))
 		requestLineDeLim := []byte{'\r','\n'}
 		requestLineEnd := bytes.Index(data, requestLineDeLim)
+		if !completeRequestLine {
+			requestLine = string(data[:requestLineEnd])
+			data = data[requestLineEnd+2:] // delete requestLine from data. (+2 because "\r\n")
+			completeRequestLine = true
+		}
 		
+		if completeRequestLine && !complateHeader {			
+			partRequestLine := bytes.Split(data, requestLineDeLim)
+			if len(partRequestLine)<2 {
+				continue
+			}
+
+			for i := 0; i < len(partRequestLine); i++ {
+				if i>0 && len(partRequestLine[i])==0{
+					complateHeader = true
+					break
+				}
+				ind := bytes.Index(data, requestLineDeLim)
+				if ind == -1 {
+					log.Println("error:handle(): can't find '\\r\\n':")
+					continue
+				}
+				headers += string(data[:ind+2])
+				data = data[ind+2:]
+			}
+		}
+		if complateHeader && !complateBody {
+			if EOF {
+				complateBody = true
+			}
+			if len(data) < 2 {
+				continue
+			}
+			if string(data[:2]) == string(requestLineDeLim) {
+				data = data[2:]
+			}
+			partRequestBody := bytes.Split(data, requestLineDeLim)
+			for i := 0; i < len(partRequestBody); i++ {
+				if i == (len(partRequestBody)-1) && !EOF {
+					continue
+				}
+				body += string(partRequestBody[i]) + "\r\n"
+			}
+		}
+
 		if requestLineEnd == -1{
 			continue
 		}
 		
-		requestLine := string(data[:requestLineEnd])
 		parts := strings.Split(requestLine, " ")	
 		
 		if len(parts)!=3{
@@ -105,8 +166,33 @@ func (s *Server) handle(req Request){
 		uri, _ :=url.ParseRequestURI(path)
 		queryValues :=uri.Query()
 		log.Print(uri.Query())
-		
+
+		//Форматируем пути
 		pathParams, handlerPath:=s.convertPath(uri.Path)
+
+		//Добавляем заголовки
+		tempHead := make(map[string]string)
+		header := strings.Split(headers,"\r\n")
+		for i := 0; i < len(header)-1; i++ {
+			header[i]=strings.Replace(header[i]," ","",-1)
+			head:=strings.Split(header[i],":")
+			h :=""
+			for j := 1; j < len(head); j++ {
+				if len(head[j])==0{
+					continue
+				}
+				if j==len(head)-1{
+					h+=head[len(head)-1]
+				}else{
+					h+=head[j]+":"
+				}
+			}
+			tempHead[head[0]]=h					
+						
+		}
+		
+		log.Print("HEADERS: ",tempHead)
+
 		if len(pathParams)!=0{
 			log.Print((pathParams))	
 			s.mu.RLock()		
@@ -120,7 +206,10 @@ func (s *Server) handle(req Request){
 				Conn:        req.Conn,
 				QueryParams: queryValues,
 				PathParams:  pathParams,
+				Headers:     tempHead,
+				Body:        []byte(body),
 			}
+
 			handler(&req)
 		}else{
 			log.Print((pathParams))	
@@ -136,6 +225,8 @@ func (s *Server) handle(req Request){
 				Conn:        req.Conn,
 				QueryParams: queryValues,
 				PathParams:  pathParams,
+				Headers:     tempHead,
+				Body:        []byte(body),
 			}
 			handler(&req)
 		}
@@ -148,8 +239,6 @@ func (s *Server) handle(req Request){
 
 func (s *Server) AddPath(path string, body string, conType string) {	
 	s.Register(path, func(req *Request) {
-	log.Println("QueryParams:", req.QueryParams)
-	log.Println("PathParams:", req.PathParams)
 		_, err := req.Conn.Write([]byte(
 			"HTTP/1.1 200 OK \r\n" +
 				"Content-Length: " + strconv.Itoa(len(body)) + "\r\n" +
