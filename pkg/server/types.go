@@ -18,4 +18,6 @@ type Request struct {
 	Conn 		net.Conn
 	QueryParams	url.Values
 	PathParams	map[string]string
+	Headers		map[string]string
+	Body 		[]byte
 }
