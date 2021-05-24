@@ -1,11 +1,16 @@
-### Запрос для второго ДЗ
-GET http://localhost:9999/api/payment/?chan=55&chan=88 HTTP/1.1
+###GetAll
+POST http://localhost:9999/banners.getAll/ HTTP/1.1
 
-#### Работающий запрос
-POST http://localhost:9999/api/payment/7 HTTP/1.1 
-Content-Type: application/json
-  
-### Неработающий запрос
-POST http://localhost:9999/api/payment/7 HTTP/1.1
-Content-Type: application/json 
+### save
+POST http://localhost:9999/banners.save/?id=0&title=депозиты с доходом 60/40&content=Вкладывайте в национальной валюте&button=рассчитать доход&link=https://alif.tj/deposit#CountYourIncome HTTP/1.1
 
+### update
+
+POST http://localhost:9999/banners.save/?id=1&title=депозиты&content=Вкладывайте в национальной валюте&button=рассчитать доход&link=https://alif.tj/deposit#CountYourIncome HTTP/1.1
+
+
+###  find
+POST http://localhost:9999/banners.getById/?id=1
+
+### delete
+POST http://localhost:9999/banners.removeById/?id=5
