@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-
 	"github.com/mijgona/http/cmd/app"
 	"github.com/mijgona/http/pkg/banners"
 )

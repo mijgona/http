@@ -7,4 +7,5 @@ type Banner struct {
 	Content	string
 	Button	string
 	Link	string
+	Image	string
 }

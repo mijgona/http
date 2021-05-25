@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golang</title>
+</head>
+<body>
+    <h1>Создание или обновление баннера</h1>
+    <form action="http://localhost:9999/banners.save" method="POST" enctype="multipart/form-data">
+        ID: <input type="number" name="id"> Наберите 0 для создания нового баннера<br>    
+        Title: <input type="text" name="title"><br>
+        Content: <input type="text" name="content"><br>
+        Button: <input type="text" name="button"><br>
+        Link: <input type="text" name="link"><br>
+        Image: <input type="file" name="image"><br> 
+         <button>Отправить</button>
+       </form>
+    <h1>Спсиок всех баннеров</h1>
+    <form action="http://localhost:9999/banners.getAll" method="POST" enctype="multipart/form-data">
+         <button>Все баннеры</button>
+    </form>
+    
+    <h1>Удалить баннер по ID</h1>
+    <form action="http://localhost:9999/banners.removeById" method="POST" enctype="multipart/form-data">
+        ID: <input type="number" name="id">
+        <button>Удалить баннер</button>
+    </form>
+    <h1>Найти баннер по ID</h1>
+    <form action="http://localhost:9999/banners.getById" method="POST" enctype="multipart/form-data">
+        ID: <input type="number" name="id">
+        <button>Найти баннер</button>
+    </form>
+</body>
+</html>
